@@ -20,20 +20,19 @@ import {
   enhance,
   formatAmount,
   formatCost,
-  getLeaderboardStorageKey,
+  getMonthKey,
   getProtectReward,
   getRecipeRequirement,
   getStage,
-  loadLeaderboard,
   loadState,
   reviveWithProtection,
   saveState,
   sellCurrent,
   setScreen,
+  LEADERBOARD_PREFIX,
   startOverAfterFailure,
   STORAGE_PREFIX,
   storeCurrentOrganism,
-  submitLeaderboardEntry,
   type GameState,
   type LeaderboardEntry,
 } from "./gameLogic";
@@ -47,11 +46,16 @@ const titleMicrobeLevel = Math.floor(Math.random() * 30);
 let state: GameState | null = null;
 let isTitleHelpOpen = false;
 let isLeaderboardOpen = false;
+let leaderboardEntries: LeaderboardEntry[] = [];
+let leaderboardMonth = getMonthKey();
+let leaderboardError: string | null = null;
+let leaderboardLoading = false;
 
-removeSampleLeaderboardEntries();
+clearLegacyLocalLeaderboard();
 render();
+void refreshLeaderboard();
 
-app.addEventListener("click", (event) => {
+app.addEventListener("click", async (event) => {
   const target = (event.target as HTMLElement).closest<HTMLElement>("[data-action]");
   if (!target) return;
 
@@ -76,6 +80,13 @@ app.addEventListener("click", (event) => {
   if (action === "toggle-ranking") {
     isLeaderboardOpen = !isLeaderboardOpen;
     if (isLeaderboardOpen) isTitleHelpOpen = false;
+    render();
+    if (isLeaderboardOpen) void refreshLeaderboard(true);
+    return;
+  }
+
+  if (action === "refresh-ranking") {
+    void refreshLeaderboard(true);
     render();
     return;
   }
@@ -111,9 +122,12 @@ app.addEventListener("click", (event) => {
       break;
     case "submit-ranking": {
       const name = app.querySelector<HTMLInputElement>("#rank-name")?.value ?? "";
-      const result = submitLeaderboardEntry(localStorage, state, name);
+      const submittingState = state;
+      state = { ...state, message: "랭킹 등록 중..." };
+      render();
+      const result = await submitLeaderboardToServer(submittingState, name);
       if (result.error) {
-        state = { ...state, message: result.error };
+        state = { ...submittingState, screen: "rankSubmit", message: result.error };
         break;
       }
       localStorage.removeItem(`${STORAGE_PREFIX}easy`);
@@ -144,35 +158,122 @@ function persist(): void {
   if (state) saveState(localStorage, state);
 }
 
-function removeSampleLeaderboardEntries(): void {
+function clearLegacyLocalLeaderboard(): void {
   const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter(
-    (key): key is string => key?.startsWith("microbe-growing-leaderboard-v1:") ?? false,
+    (key): key is string => key?.startsWith(LEADERBOARD_PREFIX) ?? false,
   );
 
   for (const key of keys) {
-    const rawEntries = localStorage.getItem(key);
-    if (!rawEntries) continue;
-
-    try {
-      const entries = JSON.parse(rawEntries) as unknown;
-      if (!Array.isArray(entries)) continue;
-
-      const actualEntries = entries.filter((entry) => {
-        if (!entry || typeof entry !== "object") return true;
-        const id = (entry as { id?: unknown }).id;
-        return typeof id !== "string" || !id.startsWith("sample-");
-      });
-
-      if (actualEntries.length === entries.length) continue;
-      if (actualEntries.length === 0) {
-        localStorage.removeItem(key);
-      } else {
-        localStorage.setItem(key, JSON.stringify(actualEntries));
-      }
-    } catch {
-      // Ignore malformed user storage.
-    }
+    localStorage.removeItem(key);
   }
+}
+
+async function refreshLeaderboard(showLoading = false): Promise<void> {
+  if (showLoading) {
+    leaderboardLoading = true;
+    leaderboardError = null;
+    render();
+  }
+
+  try {
+    const response = await fetch("/api/leaderboard", {
+      headers: { accept: "application/json" },
+      cache: "no-store",
+    });
+    const payload = (await response.json()) as unknown;
+
+    if (!response.ok) {
+      throw new Error(getApiError(payload) ?? "랭킹을 불러오지 못했습니다.");
+    }
+
+    applyLeaderboardPayload(payload);
+    leaderboardError = null;
+  } catch {
+    leaderboardError = "서버 랭킹을 불러오지 못했습니다.";
+  } finally {
+    leaderboardLoading = false;
+    render();
+  }
+}
+
+async function submitLeaderboardToServer(
+  current: GameState,
+  name: string,
+): Promise<{ error: string | null }> {
+  try {
+    const response = await fetch("/api/leaderboard", {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name,
+        mode: current.mode,
+        level: current.level,
+      }),
+    });
+    const payload = (await response.json()) as unknown;
+
+    if (!response.ok) {
+      return { error: getApiError(payload) ?? "랭킹 등록에 실패했습니다." };
+    }
+
+    applyLeaderboardPayload(payload);
+    leaderboardError = null;
+    return { error: null };
+  } catch {
+    return { error: "서버 랭킹에 연결하지 못했습니다." };
+  }
+}
+
+function applyLeaderboardPayload(payload: unknown): void {
+  if (!payload || typeof payload !== "object") return;
+
+  const monthKey = (payload as { monthKey?: unknown }).monthKey;
+  const entries = (payload as { entries?: unknown }).entries;
+
+  leaderboardMonth = typeof monthKey === "string" ? monthKey : leaderboardMonth;
+  leaderboardEntries = normalizeLeaderboardEntries(entries);
+}
+
+function getApiError(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const error = (payload as { error?: unknown }).error;
+  return typeof error === "string" ? error : null;
+}
+
+function normalizeLeaderboardEntries(value: unknown): LeaderboardEntry[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry): LeaderboardEntry | null => {
+      if (!entry || typeof entry !== "object") return null;
+      const candidate = entry as Partial<LeaderboardEntry>;
+      if (
+        typeof candidate.id !== "string" ||
+        typeof candidate.name !== "string" ||
+        typeof candidate.level !== "number" ||
+        typeof candidate.stageName !== "string" ||
+        (candidate.mode !== "easy" && candidate.mode !== "hard") ||
+        typeof candidate.submittedAt !== "number" ||
+        typeof candidate.monthKey !== "string"
+      ) {
+        return null;
+      }
+
+      return {
+        id: candidate.id,
+        name: candidate.name,
+        level: Math.floor(candidate.level),
+        stageName: candidate.stageName,
+        mode: candidate.mode,
+        submittedAt: candidate.submittedAt,
+        monthKey: candidate.monthKey,
+        isAstrophage: candidate.isAstrophage === true || candidate.level === 29,
+      };
+    })
+    .filter((entry): entry is LeaderboardEntry => entry !== null);
 }
 
 function render(): void {
@@ -495,8 +596,8 @@ function renderPanel(current: GameState, title: string, subtitle: string, body: 
 }
 
 function renderLeaderboardPanel(context: "title" | "game"): string {
-  const entries = loadLeaderboard(localStorage);
-  const month = getLeaderboardStorageKey().replace("microbe-growing-leaderboard-v1:", "");
+  const entries = leaderboardEntries;
+  const month = leaderboardMonth;
   const easyEntries = entries.filter((entry) => entry.mode === "easy");
   const hardEntries = entries.filter((entry) => entry.mode === "hard");
 
@@ -506,7 +607,11 @@ function renderLeaderboardPanel(context: "title" | "game"): string {
       <h2>월간 랭킹</h2>
       <p class="ranking-month">${month}</p>
       ${
-        entries.length === 0
+        leaderboardLoading
+          ? '<p class="empty-ranking">랭킹을 불러오는 중입니다.</p>'
+          : leaderboardError
+            ? `<p class="empty-ranking">${escapeHtml(leaderboardError)}</p>`
+            : entries.length === 0
           ? '<p class="empty-ranking">아직 등록된 미생물이 없습니다.</p>'
           : `
             <div class="ranking-sections">
