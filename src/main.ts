@@ -41,6 +41,7 @@ const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) throw new Error("#app is missing");
 const app = root;
 const TITLE_TEXT = "미생물 키우기";
+const RESET_MODE_CONFIRM_MESSAGE = "현재 모드 진행을 초기화할까요?\n저장된 진행과 랭킹 도전 기록이 삭제됩니다.";
 const titleMicrobeLevel = Math.floor(Math.random() * 30);
 const DEFAULT_MICROBE_SIZES = "(max-width: 960px) 66vw, 470px";
 const TITLE_MICROBE_SIZES = "(max-width: 960px) 58vw, 430px";
@@ -184,9 +185,13 @@ app.addEventListener("click", async (event) => {
       if (value) state = combineRecipe(state, value);
       break;
     case "reset-mode":
-      clearRankingRun(state.mode);
-      state = createInitialState(state.mode);
-      localStorage.removeItem(`${STORAGE_PREFIX}${state.mode}`);
+      if (!window.confirm(RESET_MODE_CONFIRM_MESSAGE)) return;
+      {
+        const resetMode = state.mode;
+        clearRankingRun(resetMode);
+        state = createInitialState(resetMode);
+        localStorage.removeItem(`${STORAGE_PREFIX}${resetMode}`);
+      }
       break;
   }
 
