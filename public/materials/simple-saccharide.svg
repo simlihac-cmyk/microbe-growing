@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="하찮은 단당류">
+  <rect width="96" height="96" rx="18" fill="#f8fbff"/>
+  <path d="M31 29h34l17 19-17 19H31L14 48z" fill="#ffe27a" stroke="#171717" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="31" cy="48" r="7" fill="#fff6bd" stroke="#171717" stroke-width="4"/>
+  <circle cx="49" cy="48" r="7" fill="#fff6bd" stroke="#171717" stroke-width="4"/>
+  <circle cx="65" cy="48" r="6" fill="#fff6bd" stroke="#171717" stroke-width="4"/>
+</svg>

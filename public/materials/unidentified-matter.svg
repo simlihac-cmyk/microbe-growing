@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="미확인 물질">
+  <rect width="96" height="96" rx="18" fill="#f8fbff"/>
+  <path d="M27 24c15-17 44-3 44 21 0 20-15 31-32 31-20 0-31-14-26-31" fill="#d5f4ff" fill-opacity=".72" stroke="#171717" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M36 35c8-8 25-4 25 9 0 13-15 17-24 12" fill="none" stroke="#70cfff" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="63" cy="68" r="8" fill="#ffffff" fill-opacity=".75" stroke="#171717" stroke-width="4"/>
+  <circle cx="29" cy="58" r="5" fill="#ffffff" fill-opacity=".75" stroke="#171717" stroke-width="3"/>
+</svg>

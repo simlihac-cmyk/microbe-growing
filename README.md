@@ -1,0 +1,27 @@
+# 미생물 키우기
+
+HTML5/Vite로 만든 미생물 배양 게임입니다.
+
+## 로컬 실행
+
+```bash
+npm install
+npm run dev
+```
+
+## 검증
+
+```bash
+npm test
+npm run build
+```
+
+## 배포
+
+정적 빌드 결과물은 `dist/`에 생성됩니다.
+
+```bash
+npm run build
+```
+
+권장 배포 대상 도메인은 `https://microbe.monosaccharide180.com/`입니다. 자세한 배포 순서는 [DEPLOYMENT.md](./DEPLOYMENT.md)를 참고하세요.
