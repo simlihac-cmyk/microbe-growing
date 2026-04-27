@@ -1,17 +1,28 @@
 {
   "name": "microbe-growing-html5",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
+    "optimize:images": "node scripts/optimize-microbes.mjs",
     "build": "tsc && vite build",
+    "build:android": "VITE_API_BASE_URL=https://microbe.monosaccharide180.com VITE_ANDROID_APP=true npm run build && npx cap sync android",
+    "android:apk": "sh scripts/build-android-apk.sh",
+    "android:open": "npx cap open android",
+    "release": "bash scripts/release.sh",
     "start": "node --no-warnings server.mjs",
     "test": "vitest run"
   },
   "devDependencies": {
+    "sharp": "^0.34.5",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
     "vitest": "^4.1.5"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1"
   }
 }

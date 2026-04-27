@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">미생물 키우기</string>
+    <string name="title_activity_main">미생물 키우기</string>
+    <string name="package_name">com.monosaccharide180.microbegrowing</string>
+    <string name="custom_url_scheme">com.monosaccharide180.microbegrowing</string>
+</resources>

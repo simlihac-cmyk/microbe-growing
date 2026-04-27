@@ -18,16 +18,60 @@ body {
   min-height: 100vh;
 }
 
-button {
+button,
+a {
   font: inherit;
   touch-action: manipulation;
 }
 
 .shell {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding: 16px;
+}
+
+.outside-game-ad {
+  width: min(970px, calc(100vw - 24px));
+  min-height: 90px;
+}
+
+.outside-game-ad .adsbygoogle {
+  min-height: 90px;
+}
+
+ins.adsbygoogle[data-ad-status="unfilled"],
+ins.adsbygoogle[data-ad-status="unfill-optimized"] {
+  display: none !important;
+}
+
+.outside-game-ad:has(ins.adsbygoogle[data-ad-status="unfilled"]),
+.outside-game-ad:has(ins.adsbygoogle[data-ad-status="unfill-optimized"]) {
+  display: none;
+}
+
+.site-links {
+  width: min(1280px, calc(100vw - 24px));
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  color: #4f5f55;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.site-links a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.site-links a:hover {
+  text-decoration: underline;
 }
 
 .game-stage {
@@ -46,7 +90,7 @@ button {
   grid-template-columns: 1fr 0.92fr;
   grid-template-rows: auto 1fr;
   align-items: center;
-  padding: 6.5% 7% 6%;
+  padding: 5.2% 7% 4.8%;
   isolation: isolate;
 }
 
@@ -71,7 +115,7 @@ button {
   margin: 0;
   display: inline-flex;
   flex-wrap: wrap;
-  font-size: clamp(56px, 7.3vw, 118px);
+  font-size: clamp(54px, 6.6vw, 104px);
   line-height: 1;
   color: #117a46;
 }
@@ -134,15 +178,15 @@ button {
 
 .mode-list {
   width: 100%;
-  margin-top: 22px;
+  margin-top: 14px;
   display: grid;
-  gap: 18px;
+  gap: 10px;
 }
 
 .title-panel {
   align-self: end;
   width: min(560px, 100%);
-  padding: 22px 24px 24px;
+  padding: 18px 24px 18px;
   border: 4px solid #111;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.84);
@@ -151,15 +195,20 @@ button {
 }
 
 .help-button {
+  display: block;
   width: 100%;
-  min-height: 48px;
-  margin-top: 16px;
+  min-height: 42px;
+  padding: 7px 12px;
+  margin-top: 10px;
   border: 3px solid #111;
   border-radius: 6px;
   background: #e6fff0;
   color: #111;
   font-weight: 900;
-  font-size: clamp(16px, 1.8vw, 22px);
+  font-size: clamp(15px, 1.55vw, 20px);
+  line-height: 1.15;
+  text-align: center;
+  text-decoration: none;
   cursor: pointer;
   box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.14);
 }
@@ -169,8 +218,19 @@ button {
   background: #f2f5ff;
 }
 
+.help-button.codex-toggle {
+  margin-top: 10px;
+  background: #fff6d8;
+}
+
+.help-button.android-download {
+  margin-top: 10px;
+  background: #eaffdf;
+}
+
 .title-help,
-.title-ranking {
+.title-ranking,
+.title-codex {
   position: absolute;
   left: 7%;
   bottom: 6%;
@@ -181,6 +241,11 @@ button {
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 7px 8px 0 rgba(0, 0, 0, 0.14);
   z-index: 8;
+}
+
+.title-help {
+  max-height: 82%;
+  overflow: auto;
 }
 
 .title-ranking {
@@ -194,7 +259,23 @@ button {
   overflow: auto;
 }
 
+.title-codex {
+  top: 8%;
+  right: 5%;
+  bottom: 5%;
+  left: 5%;
+  width: auto;
+  max-height: none;
+  padding: 24px 28px;
+  overflow: auto;
+}
+
 .ranking-close {
+  top: 14px;
+  right: 14px;
+}
+
+.codex-close {
   top: 14px;
   right: 14px;
 }
@@ -264,15 +345,117 @@ button {
 }
 
 .title-ranking h2,
-.ranking-panel h2 {
+.ranking-panel h2,
+.title-codex h2 {
   margin: 0;
   font-size: clamp(22px, 2.7vw, 34px);
   line-height: 1;
 }
 
-.title-ranking h2 {
+.title-ranking h2,
+.title-codex h2 {
   padding-right: 42px;
   font-size: clamp(36px, 4.2vw, 62px);
+}
+
+.codex-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 4px solid #111;
+}
+
+.codex-heading p {
+  margin: 0;
+  color: #4f5f55;
+  font-size: clamp(17px, 1.8vw, 26px);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.codex-tile {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 3px solid #111;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 4px 5px 0 rgba(0, 0, 0, 0.12);
+}
+
+.codex-tile.locked {
+  background: #f3f3f3;
+  color: #777;
+  border-color: #555;
+}
+
+.codex-art {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.codex-art .microbe-picture,
+.codex-art .organism-image {
+  width: 100%;
+  height: 100%;
+}
+
+.codex-art span {
+  display: grid;
+  place-items: center;
+  width: 72%;
+  height: 72%;
+  border: 4px dashed #888;
+  border-radius: 50%;
+  background: #fff;
+  color: #555;
+  font-size: clamp(40px, 4.6vw, 72px);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.codex-label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  font-weight: 900;
+}
+
+.codex-label strong {
+  color: #117a46;
+  font-size: clamp(15px, 1.4vw, 21px);
+  white-space: nowrap;
+}
+
+.codex-label span {
+  overflow: hidden;
+  color: #17231d;
+  font-family: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-size: clamp(14px, 1.25vw, 19px);
+  font-weight: 400;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-tile.locked .codex-label strong,
+.codex-tile.locked .codex-label span {
+  color: #666;
 }
 
 .ranking-month {
@@ -506,7 +689,7 @@ button {
   color: #000;
   background: transparent;
   font-weight: 900;
-  font-size: clamp(28px, 4.5vw, 58px);
+  font-size: clamp(28px, 3.8vw, 50px);
   letter-spacing: 0;
   cursor: pointer;
 }
@@ -514,7 +697,7 @@ button {
 .mode-button {
   justify-content: space-between;
   width: 100%;
-  padding: 8px 0 8px 4px;
+  padding: 4px 0 4px 4px;
 }
 
 .circle-labeled {
@@ -559,27 +742,46 @@ button {
   height: clamp(48px, 6vw, 78px);
 }
 
-.enhance-button {
-  position: absolute;
-  top: 39%;
-  right: 9.8%;
-  width: clamp(116px, 13.5vw, 178px);
-  height: clamp(116px, 13.5vw, 178px);
+.stage-actions {
+  --sell-action-size: clamp(48px, 5vw, 64px);
+  --enhance-action-size: clamp(96px, 10vw, 128px);
+
+  display: grid;
+  grid-template-rows: var(--sell-action-size) var(--enhance-action-size);
+  justify-items: center;
+  gap: 14px;
+  width: max-content;
 }
 
-.enhance-button strong {
-  position: relative;
-  z-index: 1;
-  color: #fff;
-  font-size: clamp(14px, 1.45vw, 19px);
+.stage-action-button {
+  display: grid;
+  place-items: center;
+  width: var(--sell-action-size);
+  height: var(--sell-action-size);
+  padding: 0;
+  border: 4px solid #111;
+  border-radius: 6px;
+  background: #fff4bd;
+  color: #111;
+  font-size: clamp(16px, 1.45vw, 20px);
+  font-weight: 900;
   line-height: 1;
-  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  box-shadow: 4px 5px 0 rgba(0, 0, 0, 0.16);
 }
 
-.enhance-button > span {
-  position: absolute;
-  width: 74%;
-  height: 74%;
+.sell-placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.enhance-button {
+  width: var(--enhance-action-size);
+  height: var(--enhance-action-size);
+  background: #1f3b31;
+  color: #fff;
+  font-size: clamp(22px, 2.35vw, 30px);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
 }
 
 .rank-submit-button {
@@ -601,6 +803,7 @@ button {
 
 .round-button:disabled,
 .text-button:disabled,
+.stage-action-button:disabled,
 .circle-labeled:disabled {
   cursor: not-allowed;
   opacity: 0.38;
@@ -667,6 +870,12 @@ button {
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+.microbe-picture {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .organism-name {
@@ -742,10 +951,11 @@ button {
 .play-stage {
   display: grid;
   grid-template-columns: minmax(230px, 0.82fr) minmax(360px, 1.2fr) minmax(210px, 0.62fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   grid-template-areas:
     "left title right"
     "success atp status"
-    "cost organism enhance"
+    "cost organism actions"
     "cost name rank"
     "message message message";
   align-items: center;
@@ -757,7 +967,7 @@ button {
 .play-stage .circle-labeled,
 .play-stage .cost-panel,
 .play-stage .organism-wrap,
-.play-stage .enhance-button,
+.play-stage .stage-actions,
 .play-stage .rank-submit-button,
 .play-stage .organism-name,
 .play-stage .status-left,
@@ -776,6 +986,8 @@ button {
   justify-self: center;
   gap: 10px;
   font-size: clamp(34px, 4.5vw, 64px);
+  line-height: 1.28;
+  padding: 2px 0 6px;
   text-align: center;
 }
 
@@ -903,7 +1115,10 @@ button {
   grid-area: organism;
   justify-self: center;
   align-self: center;
-  width: min(470px, 92%);
+  min-width: 0;
+  min-height: 0;
+  width: min(430px, 92%, 100%);
+  max-height: 100%;
   height: auto;
   aspect-ratio: 1;
 }
@@ -912,18 +1127,16 @@ button {
   grid-area: name;
   justify-self: center;
   align-self: start;
-  font-size: clamp(34px, 4.2vw, 58px);
-  line-height: 1;
+  font-size: clamp(32px, 3.9vw, 52px);
+  line-height: 1.1;
+  padding-bottom: 4px;
   text-align: center;
 }
 
-.play-stage .enhance-button {
-  grid-area: enhance;
-  position: relative;
+.play-stage .stage-actions {
+  grid-area: actions;
   justify-self: center;
   align-self: center;
-  width: clamp(72px, 7.2vw, 92px);
-  height: clamp(72px, 7.2vw, 92px);
 }
 
 .play-stage .rank-submit-button {
@@ -1245,6 +1458,7 @@ button {
 .circle-labeled:hover:not(:disabled),
 .mode-button:hover:not(:disabled),
 .help-button:hover:not(:disabled),
+.help-button:hover,
 .help-close:hover:not(:disabled),
 .rank-submit-button:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -1261,7 +1475,7 @@ button {
 }
 
 .panel-stage {
-  padding: 13% 6% 6%;
+  padding: clamp(96px, 8.5vw, 116px) 6% 6%;
 }
 
 .panel-heading {
@@ -1449,7 +1663,25 @@ button {
 
   .shell {
     padding: 8px;
-    align-items: start;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .outside-game-ad {
+    width: calc(100vw - 16px);
+    min-height: 100px;
+  }
+
+  .outside-game-ad .adsbygoogle {
+    min-height: 100px;
+  }
+
+  .site-links {
+    width: calc(100vw - 16px);
+    padding: 0 4px 6px;
+    gap: 5px 10px;
+    font-size: 11px;
   }
 
   .game-stage {
@@ -1525,7 +1757,8 @@ button {
     font-size: clamp(13px, 3.75vw, 16px);
   }
 
-  .title-ranking {
+  .title-ranking,
+  .title-codex {
     position: absolute;
     top: 9%;
     left: 5%;
@@ -1534,6 +1767,48 @@ button {
     width: auto;
     max-height: none;
     padding: 18px 16px;
+  }
+
+  .codex-heading {
+    display: block;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+
+  .codex-heading p {
+    margin-top: 6px;
+    font-size: clamp(16px, 4.7vw, 21px);
+  }
+
+  .codex-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .codex-tile {
+    gap: 6px;
+    padding: 7px;
+    border-width: 2px;
+  }
+
+  .codex-art span {
+    border-width: 3px;
+    font-size: clamp(34px, 10vw, 52px);
+  }
+
+  .codex-label {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    min-height: 42px;
+    text-align: center;
+  }
+
+  .codex-label strong {
+    font-size: clamp(13px, 3.8vw, 16px);
+  }
+
+  .codex-label span {
+    font-size: clamp(12px, 3.4vw, 15px);
   }
 
   .ranking-entry {
@@ -1568,26 +1843,34 @@ button {
   .play-stage {
     display: grid;
     grid-template-columns: max-content minmax(54px, 1fr) max-content;
+    grid-template-rows: none;
     grid-template-areas:
       "title title title"
-      "left status right"
+      "left nav right"
+      "status status status"
       "success success success"
       "atp atp atp"
       "message message message"
       "cost cost cost"
-      "organism organism enhance"
+      "organism organism actions"
       "name name name"
       "rank rank rank";
     align-content: start;
-    gap: 10px 6px;
-    padding: 18px;
+    gap: 8px 6px;
+    padding: 14px;
+  }
+
+  .play-stage::before {
+    content: "";
+    grid-area: nav;
+    min-height: 46px;
   }
 
   .play-stage .top-title,
   .play-stage .circle-labeled,
   .play-stage .cost-panel,
   .play-stage .organism-wrap,
-  .play-stage .enhance-button,
+  .play-stage .stage-actions,
   .play-stage .rank-submit-button,
   .play-stage .organism-name,
   .play-stage .status-left,
@@ -1605,7 +1888,9 @@ button {
     grid-area: title;
     justify-self: center;
     align-items: baseline;
-    font-size: clamp(31px, 10vw, 46px);
+    font-size: clamp(29px, 9.2vw, 42px);
+    line-height: 1.28;
+    padding: 2px 0 6px;
     text-align: center;
     white-space: nowrap;
   }
@@ -1652,7 +1937,7 @@ button {
     border: 3px solid #111;
     border-radius: 6px;
     background: #f7fff9;
-    font-size: clamp(18px, 5.5vw, 25px);
+    font-size: clamp(17px, 5vw, 23px);
   }
 
   .play-stage .cost-panel .tip {
@@ -1663,7 +1948,8 @@ button {
     grid-area: organism;
     justify-self: center;
     align-self: center;
-    width: min(66vw, 330px);
+    width: min(54vw, 260px);
+    max-height: none;
     height: auto;
     aspect-ratio: 1;
   }
@@ -1671,17 +1957,31 @@ button {
   .play-stage .organism-name {
     grid-area: name;
     align-self: center;
-    font-size: clamp(34px, 10.2vw, 54px);
+    font-size: clamp(28px, 8.8vw, 46px);
+    line-height: 1.12;
+    padding-bottom: 4px;
     text-align: center;
   }
 
-  .play-stage .enhance-button {
-    grid-area: enhance;
-    position: relative;
+  .play-stage .stage-actions {
+    --sell-action-size: clamp(34px, 10vw, 42px);
+    --enhance-action-size: clamp(68px, 20vw, 84px);
+
+    grid-area: actions;
     justify-self: end;
     align-self: center;
-    width: clamp(58px, 16vw, 72px);
-    height: clamp(58px, 16vw, 72px);
+    gap: 8px;
+  }
+
+  .play-stage .stage-action-button {
+    border-width: 3px;
+    border-radius: 5px;
+    font-size: clamp(13px, 3.7vw, 16px);
+    box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.16);
+  }
+
+  .play-stage .enhance-button {
+    font-size: clamp(17px, 5vw, 22px);
   }
 
   .play-stage .rank-submit-button {
@@ -1752,10 +2052,6 @@ button {
   .cost-panel {
     left: 5%;
     width: 56%;
-  }
-
-  .enhance-button {
-    right: 6%;
   }
 
   .rank-submit-button {

@@ -106,3 +106,27 @@ launchctl kickstart -k gui/$(id -u)/com.sg_mac.cloudflared
 dig @1.1.1.1 +short microbe.monosaccharide180.com
 curl -I https://microbe.monosaccharide180.com/
 ```
+
+## Google AdSense
+
+- 게시자 ID: `pub-1148471265184249`
+- AdSense 클라이언트 ID: `ca-pub-1148471265184249`
+- `public/ads.txt` 내용:
+
+```txt
+google.com, pub-1148471265184249, DIRECT, f08c47fec0942fa0
+```
+
+빌드 시 Vite 플러그인이 `index.html`의 `<head>`에 `google-adsense-account` 메타 태그와 AdSense 스크립트를 삽입합니다. `VITE_ANDROID_APP=true`인 안드로이드 앱 빌드에는 삽입하지 않습니다.
+
+개인정보처리방침, 이용약관, 광고/제휴 고지, 문의 페이지는 `microbe.monosaccharide180.com`의 정적 페이지로 직접 배포됩니다.
+
+AdSense 콘솔에서 `microbe.monosaccharide180.com`을 사이트에 추가하고, Auto ads를 켜는 경우 게임 영역이 광고로 가려지지 않도록 overlay format을 끄거나 게임 화면을 제외 영역으로 설정합니다. 수동 광고 단위를 만들었다면 `VITE_ADSENSE_BOTTOM_SLOT=<slot id> npm run build`로 빌드하면 광고가 게임 바깥 하단에만 렌더링됩니다.
+
+배포 후 확인:
+
+```bash
+curl -sS -L https://microbe.monosaccharide180.com/ads.txt
+curl -sS -L https://microbe.monosaccharide180.com/ | grep -E "google-adsense-account|adsbygoogle"
+curl -I https://microbe.monosaccharide180.com/policy/privacy/
+```

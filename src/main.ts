@@ -42,16 +42,36 @@ if (!root) throw new Error("#app is missing");
 const app = root;
 const TITLE_TEXT = "미생물 키우기";
 const titleMicrobeLevel = Math.floor(Math.random() * 30);
+const DEFAULT_MICROBE_SIZES = "(max-width: 960px) 66vw, 470px";
+const TITLE_MICROBE_SIZES = "(max-width: 960px) 58vw, 430px";
+const RANKING_RUN_PREFIX = "microbe-growing-ranking-run-v1:";
+const DISCOVERY_STORAGE_KEY = "microbe-growing-discovery-v1:max-level";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const ANDROID_APK_PATH = "/downloads/microbe-growing-debug.apk";
+const IS_ANDROID_APP = import.meta.env.VITE_ANDROID_APP === "true";
+const ADSENSE_CLIENT_ID = normalizeAdsenseClientId(
+  import.meta.env.VITE_ADSENSE_CLIENT_ID ?? import.meta.env.VITE_ADSENSE_PUBLISHER_ID ?? "pub-1148471265184249",
+);
+const ADSENSE_BOTTOM_SLOT = readEnvString(import.meta.env.VITE_ADSENSE_BOTTOM_SLOT);
+
+declare global {
+  interface Window {
+    adsbygoogle?: unknown[];
+  }
+}
 
 let state: GameState | null = null;
 let isTitleHelpOpen = false;
 let isLeaderboardOpen = false;
+let isCodexOpen = false;
 let leaderboardEntries: LeaderboardEntry[] = [];
 let leaderboardMonth = getMonthKey();
 let leaderboardError: string | null = null;
 let leaderboardLoading = false;
+let discoveredMaxLevel = loadDiscoveredMaxLevel();
 
 clearLegacyLocalLeaderboard();
+persistDiscoveredMaxLevel();
 render();
 void refreshLeaderboard();
 
@@ -65,23 +85,41 @@ app.addEventListener("click", async (event) => {
   if (action === "select-mode" && isMode(value)) {
     state = loadState(localStorage, value) ?? createInitialState(value);
     state.screen = "game";
+    recordDiscovery(state.level);
     persist();
     render();
+    void syncRankingRun(state);
     return;
   }
 
   if (action === "toggle-help") {
     isTitleHelpOpen = !isTitleHelpOpen;
-    if (isTitleHelpOpen) isLeaderboardOpen = false;
+    if (isTitleHelpOpen) {
+      isLeaderboardOpen = false;
+      isCodexOpen = false;
+    }
     render();
     return;
   }
 
   if (action === "toggle-ranking") {
     isLeaderboardOpen = !isLeaderboardOpen;
-    if (isLeaderboardOpen) isTitleHelpOpen = false;
+    if (isLeaderboardOpen) {
+      isTitleHelpOpen = false;
+      isCodexOpen = false;
+    }
     render();
     if (isLeaderboardOpen) void refreshLeaderboard(true);
+    return;
+  }
+
+  if (action === "toggle-codex") {
+    isCodexOpen = !isCodexOpen;
+    if (isCodexOpen) {
+      isTitleHelpOpen = false;
+      isLeaderboardOpen = false;
+    }
+    render();
     return;
   }
 
@@ -130,11 +168,12 @@ app.addEventListener("click", async (event) => {
         state = { ...submittingState, screen: "rankSubmit", message: result.error };
         break;
       }
-      localStorage.removeItem(`${STORAGE_PREFIX}easy`);
-      localStorage.removeItem(`${STORAGE_PREFIX}hard`);
+      localStorage.removeItem(`${STORAGE_PREFIX}${submittingState.mode}`);
+      clearRankingRun(submittingState.mode);
       state = null;
       isTitleHelpOpen = false;
       isLeaderboardOpen = true;
+      isCodexOpen = false;
       render();
       return;
     }
@@ -145,13 +184,16 @@ app.addEventListener("click", async (event) => {
       if (value) state = combineRecipe(state, value);
       break;
     case "reset-mode":
+      clearRankingRun(state.mode);
       state = createInitialState(state.mode);
       localStorage.removeItem(`${STORAGE_PREFIX}${state.mode}`);
       break;
   }
 
+  if (state) recordDiscovery(state.level);
   persist();
   render();
+  if (state) void syncRankingRun(state);
 });
 
 function persist(): void {
@@ -168,6 +210,36 @@ function clearLegacyLocalLeaderboard(): void {
   }
 }
 
+function loadDiscoveredMaxLevel(): number {
+  let maxLevel = readStoredDiscoveryLevel();
+  for (const mode of ["easy", "hard"] as const) {
+    const savedState = loadState(localStorage, mode);
+    if (savedState) maxLevel = Math.max(maxLevel, savedState.level);
+  }
+  return clampStageLevel(maxLevel);
+}
+
+function readStoredDiscoveryLevel(): number {
+  const value = Number.parseInt(localStorage.getItem(DISCOVERY_STORAGE_KEY) ?? "", 10);
+  return Number.isInteger(value) ? value : 0;
+}
+
+function recordDiscovery(level: number): void {
+  const nextLevel = clampStageLevel(level);
+  if (nextLevel <= discoveredMaxLevel) return;
+  discoveredMaxLevel = nextLevel;
+  persistDiscoveredMaxLevel();
+}
+
+function persistDiscoveredMaxLevel(): void {
+  localStorage.setItem(DISCOVERY_STORAGE_KEY, String(discoveredMaxLevel));
+}
+
+function clampStageLevel(level: number): number {
+  if (!Number.isFinite(level)) return 0;
+  return Math.max(0, Math.min(STAGES.easy.length - 1, Math.floor(level)));
+}
+
 async function refreshLeaderboard(showLoading = false): Promise<void> {
   if (showLoading) {
     leaderboardLoading = true;
@@ -176,11 +248,11 @@ async function refreshLeaderboard(showLoading = false): Promise<void> {
   }
 
   try {
-    const response = await fetch("/api/leaderboard", {
+    const response = await fetch(apiUrl("/api/leaderboard"), {
       headers: { accept: "application/json" },
       cache: "no-store",
     });
-    const payload = (await response.json()) as unknown;
+    const payload = await readApiPayload(response);
 
     if (!response.ok) {
       throw new Error(getApiError(payload) ?? "랭킹을 불러오지 못했습니다.");
@@ -201,7 +273,12 @@ async function submitLeaderboardToServer(
   name: string,
 ): Promise<{ error: string | null }> {
   try {
-    const response = await fetch("/api/leaderboard", {
+    const rankingRun = await syncRankingRun(current);
+    if (!rankingRun.runId) {
+      return { error: rankingRun.error ?? "랭킹 검증 서버에 연결하지 못했습니다." };
+    }
+
+    const response = await fetch(apiUrl("/api/leaderboard"), {
       method: "POST",
       headers: {
         accept: "application/json",
@@ -211,9 +288,10 @@ async function submitLeaderboardToServer(
         name,
         mode: current.mode,
         level: current.level,
+        runId: rankingRun.runId,
       }),
     });
-    const payload = (await response.json()) as unknown;
+    const payload = await readApiPayload(response);
 
     if (!response.ok) {
       return { error: getApiError(payload) ?? "랭킹 등록에 실패했습니다." };
@@ -225,6 +303,116 @@ async function submitLeaderboardToServer(
   } catch {
     return { error: "서버 랭킹에 연결하지 못했습니다." };
   }
+}
+
+type RankingRunSyncResult = { runId: string | null; error: string | null };
+type RankingRunCheckpointResult = { ok: boolean; error: string | null };
+
+async function syncRankingRun(current: GameState): Promise<RankingRunSyncResult> {
+  const existingRunId = getRankingRun(current.mode);
+  if (existingRunId) {
+    const existingCheckpoint = await checkpointRankingRun(existingRunId, current);
+    if (existingCheckpoint.ok) return { runId: existingRunId, error: null };
+    clearRankingRun(current.mode);
+  }
+
+  const rankingRun = await ensureRankingRun(current.mode);
+  if (!rankingRun.runId) return rankingRun;
+  const checkpoint = await checkpointRankingRun(rankingRun.runId, current);
+  if (checkpoint.ok) return rankingRun;
+
+  clearRankingRun(current.mode);
+  const replacementRun = await ensureRankingRun(current.mode);
+  if (!replacementRun.runId) return replacementRun;
+  const replacementCheckpoint = await checkpointRankingRun(replacementRun.runId, current);
+  return replacementCheckpoint.ok
+    ? replacementRun
+    : { runId: null, error: replacementCheckpoint.error ?? checkpoint.error };
+}
+
+async function ensureRankingRun(mode: Mode): Promise<RankingRunSyncResult> {
+  try {
+    const response = await fetch(apiUrl("/api/ranking-run"), {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        mode,
+        runId: getRankingRun(mode),
+      }),
+    });
+    const payload = await readApiPayload(response);
+
+    if (!response.ok) {
+      return { runId: null, error: getApiError(payload) ?? "랭킹 검증 서버에 연결하지 못했습니다." };
+    }
+    const runId = getPayloadRunId(payload);
+    if (!runId) return { runId: null, error: "랭킹 검증 서버 응답이 올바르지 않습니다." };
+
+    localStorage.setItem(getRankingRunStorageKey(mode), runId);
+    return { runId, error: null };
+  } catch {
+    return { runId: null, error: "랭킹 검증 서버에 연결하지 못했습니다." };
+  }
+}
+
+async function checkpointRankingRun(runId: string, current: GameState): Promise<RankingRunCheckpointResult> {
+  try {
+    const response = await fetch(apiUrl("/api/ranking-run"), {
+      method: "PATCH",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      cache: "no-store",
+      body: JSON.stringify({
+        runId,
+        mode: current.mode,
+        level: current.level,
+      }),
+    });
+    const payload = await readApiPayload(response);
+
+    return { ok: response.ok, error: response.ok ? null : getApiError(payload) };
+  } catch {
+    return { ok: false, error: "랭킹 검증 서버에 연결하지 못했습니다." };
+  }
+}
+
+async function readApiPayload(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
+
+function getPayloadRunId(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const runId = (payload as { runId?: unknown }).runId;
+  return typeof runId === "string" && runId ? runId : null;
+}
+
+function getRankingRun(mode: Mode): string | null {
+  return localStorage.getItem(getRankingRunStorageKey(mode));
+}
+
+function clearRankingRun(mode: Mode): void {
+  localStorage.removeItem(getRankingRunStorageKey(mode));
+}
+
+function getRankingRunStorageKey(mode: Mode): string {
+  return `${RANKING_RUN_PREFIX}${mode}`;
 }
 
 function applyLeaderboardPayload(payload: unknown): void {
@@ -278,6 +466,7 @@ function normalizeLeaderboardEntries(value: unknown): LeaderboardEntry[] {
 
 function render(): void {
   app.innerHTML = state ? renderGame(state) : renderTitle();
+  queueAdsenseUnits();
 }
 
 function renderTitle(): string {
@@ -288,10 +477,10 @@ function renderTitle(): string {
       <section class="game-stage title-stage" aria-label="미생물 키우기 시작 화면">
         <div class="title-copy">
           <h1 class="title-logo wobbly-title" aria-label="${TITLE_TEXT}">${renderWobblyText(TITLE_TEXT)}</h1>
-          <p class="version">V1.0.0</p>
+          <p class="version">V1.0.1</p>
         </div>
         <div class="title-microbe" aria-hidden="true">
-          <img src="/microbes/${titleMicrobeLevel}.png" alt="" draggable="false" />
+          ${renderMicrobePicture(titleMicrobeLevel, "", TITLE_MICROBE_SIZES)}
         </div>
         <div class="title-panel">
           <div class="title-stats">
@@ -308,10 +497,20 @@ function renderTitle(): string {
           <button class="help-button ranking-toggle" type="button" data-action="toggle-ranking">
             ${isLeaderboardOpen ? "랭킹 닫기" : "랭킹 보기"}
           </button>
+          <button class="help-button codex-toggle" type="button" data-action="toggle-codex">
+            ${isCodexOpen ? "도감 닫기" : "미생물 도감"}
+          </button>
+          ${
+            IS_ANDROID_APP
+              ? ""
+              : `<a class="help-button android-download" href="${ANDROID_APK_PATH}" download>안드로이드 앱 다운로드</a>`
+          }
         </div>
         ${isTitleHelpOpen ? renderTitleHelp() : ""}
         ${isLeaderboardOpen ? renderLeaderboardPanel("title") : ""}
+        ${isCodexOpen ? renderCodexPanel() : ""}
       </section>
+      ${renderOutsideGameChrome()}
     </main>
   `;
 }
@@ -321,13 +520,16 @@ function renderTitleHelp(): string {
     <aside class="title-help" aria-label="게임 설명">
       <button class="help-close" type="button" data-action="toggle-help" aria-label="게임 설명 닫기">×</button>
       <h2>게임 설명</h2>
-      <p class="help-lead">미생물을 배양해서 더 높은 단계로 성장시키는 게임입니다.</p>
+      <p class="help-lead">배양 버튼을 눌러 미생물을 키우고, 실패와 재료를 관리해서 +29까지 도전하는 게임입니다.</p>
       <ul class="help-list">
-        <li><strong>배양</strong><span>atp나 특수 재료를 사용해 다음 단계에 도전합니다.</span></li>
-        <li><strong>실패</strong><span>미생물이 소멸하고, 생긴 물질은 수거해서 조합소에서 씁니다.</span></li>
-        <li><strong>방지권</strong><span>조건이 맞으면 소멸한 미생물을 되살릴 수 있습니다.</span></li>
-        <li><strong>보관</strong><span>특정 단계 미생물은 보관해 이후 배양 재료로 사용합니다.</span></li>
-        <li><strong>목표</strong><span>+29 아스트로파지를 만들고 월간 랭킹에 이름을 올립니다.</span></li>
+        <li><strong>1. 시작</strong><span>이지모드나 하드모드를 고른 뒤 가운데 배양 버튼을 누릅니다.</span></li>
+        <li><strong>2. 성장</strong><span>성공하면 +단계가 올라가고, 단계가 높을수록 성공률이 낮아집니다.</span></li>
+        <li><strong>3. 실패</strong><span>실패하면 미생물이 소멸합니다. 나온 물질은 먼저 수거하세요.</span></li>
+        <li><strong>4. 복구</strong><span>방지권이 충분하면 실패한 미생물을 되살릴 수 있습니다.</span></li>
+        <li><strong>5. 돈벌기</strong><span>안전하게 멈추고 싶으면 판매해서 atp를 벌고 다시 시작합니다.</span></li>
+        <li><strong>6. 후반</strong><span>+19, +21, +22 미생물은 보관해두면 후반 배양 재료가 됩니다.</span></li>
+        <li><strong>7. 조합</strong><span>실패로 얻은 물질은 조합소에서 방지권이나 특수 미생물로 바꿉니다.</span></li>
+        <li><strong>목표</strong><span>+29 아스트로파지를 만들고 월간 랭킹에 이름을 올리세요.</span></li>
       </ul>
     </aside>
   `;
@@ -339,6 +541,35 @@ function renderModeButton(mode: Mode, label: string): string {
       <span>${label}</span>
       <span class="round-button small" aria-hidden="true"><span></span></span>
     </button>
+  `;
+}
+
+function renderCodexPanel(): string {
+  return `
+    <aside class="title-codex" aria-label="미생물 도감">
+      <button class="help-close codex-close" type="button" data-action="toggle-codex" aria-label="미생물 도감 닫기">×</button>
+      <div class="codex-heading">
+        <h2>미생물 도감</h2>
+        <p>최고 도달 +${discoveredMaxLevel}</p>
+      </div>
+      <div class="codex-grid">
+        ${STAGES.easy.map((stage) => renderCodexTile(stage.level, stage.name, stage.level <= discoveredMaxLevel)).join("")}
+      </div>
+    </aside>
+  `;
+}
+
+function renderCodexTile(level: number, name: string, unlocked: boolean): string {
+  return `
+    <article class="codex-tile ${unlocked ? "unlocked" : "locked"}">
+      <div class="codex-art">
+        ${unlocked ? renderMicrobePicture(level, `+${level} ${name}`, "(max-width: 960px) 26vw, 140px") : '<span aria-hidden="true">?</span>'}
+      </div>
+      <div class="codex-label">
+        <strong>+${level}</strong>
+        <span>${unlocked ? name : "?"}</span>
+      </div>
+    </article>
   `;
 }
 
@@ -356,7 +587,7 @@ function renderMainGame(current: GameState): string {
   const stage = getStage(current);
   const nextMaterialTip = getNextMaterialTip(current.level);
   const leftAction = getLeftAction(current);
-  const rightAction = current.level === 0 ? { action: "screen", value: "shop", label: "상점가기" } : { action: "sell", label: "판매하기" };
+  const rightAction = current.level === 0 ? { action: "screen", value: "shop", label: "상점가기" } : null;
   const canEnhance = stage.successRate !== null;
 
   return `
@@ -369,10 +600,14 @@ function renderMainGame(current: GameState): string {
           ${nextMaterialTip ? `<p class="tip">TIP<br>${nextMaterialTip}</p>` : ""}
         </div>
         <div class="organism-wrap" aria-hidden="true">${renderMicrobePlaceholder(stage.level)}</div>
-        <button class="round-button enhance-button" type="button" data-action="enhance" aria-label="배양하기" ${canEnhance ? "" : "disabled"}>
-          <span></span>
-          <strong>배양</strong>
-        </button>
+        <div class="stage-actions">
+          ${
+            current.level === 0
+              ? '<span class="stage-action-button sell-button sell-placeholder" aria-hidden="true">판매</span>'
+              : '<button class="stage-action-button sell-button" type="button" data-action="sell" aria-label="판매하기">판매</button>'
+          }
+          <button class="stage-action-button enhance-button" type="button" data-action="enhance" aria-label="배양하기" ${canEnhance ? "" : "disabled"}>배양</button>
+        </div>
         ${
           canSubmitLeaderboard(current)
             ? '<button class="rank-submit-button" type="button" data-action="open-rank-submit">랭킹 등록</button>'
@@ -386,6 +621,7 @@ function renderMainGame(current: GameState): string {
         <div class="atp">${formatAmount(current.atp)} atp</div>
         <div class="message">${escapeHtml(current.message)}</div>
       </section>
+      ${renderOutsideGameChrome()}
     </main>
   `;
 }
@@ -409,11 +645,12 @@ function renderRankSubmit(current: GameState): string {
               <button class="text-button" type="button" data-action="submit-ranking">등록하기</button>
               <button class="text-button ghost" type="button" data-action="screen" data-value="game">돌아가기</button>
             </div>
-            <p class="rank-note">등록하면 현재 진행이 초기화되고 첫 화면으로 돌아갑니다.</p>
+            <p class="rank-note">등록하면 현재 모드 진행이 초기화되고 첫 화면으로 돌아갑니다.</p>
           </div>
         </div>
         <div class="message">${escapeHtml(current.message)}</div>
       </section>
+      ${renderOutsideGameChrome()}
     </main>
   `;
 }
@@ -462,6 +699,7 @@ function renderFailed(current: GameState): string {
         <div class="atp">${formatAmount(current.atp)} atp</div>
         <div class="message">${escapeHtml(current.message)}</div>
       </section>
+      ${renderOutsideGameChrome()}
     </main>
   `;
 }
@@ -591,8 +829,54 @@ function renderPanel(current: GameState, title: string, subtitle: string, body: 
         </div>
         <div class="message">${escapeHtml(current.message)}</div>
       </section>
+      ${renderOutsideGameChrome()}
     </main>
   `;
+}
+
+function renderOutsideGameChrome(): string {
+  return `
+    ${renderAdsenseBanner()}
+    <footer class="site-links" aria-label="사이트 정보">
+      <a href="https://monosaccharide180.com/" target="_blank" rel="noopener noreferrer">미생물의 똑똑한 하루</a>
+      <a href="/policy/privacy/">개인정보처리방침</a>
+      <a href="/policy/terms/">이용약관</a>
+      <a href="/policy/disclosure/">광고/제휴 고지</a>
+      <a href="/contact/">문의</a>
+    </footer>
+  `;
+}
+
+function renderAdsenseBanner(): string {
+  if (IS_ANDROID_APP || !ADSENSE_CLIENT_ID || !ADSENSE_BOTTOM_SLOT) return "";
+
+  return `
+    <aside class="outside-game-ad" aria-label="광고">
+      <ins
+        class="adsbygoogle"
+        style="display:block"
+        data-ad-client="${ADSENSE_CLIENT_ID}"
+        data-ad-slot="${escapeHtml(ADSENSE_BOTTOM_SLOT)}"
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+      ></ins>
+    </aside>
+  `;
+}
+
+function queueAdsenseUnits(): void {
+  if (IS_ANDROID_APP || !ADSENSE_CLIENT_ID || !ADSENSE_BOTTOM_SLOT) return;
+
+  app.querySelectorAll<HTMLElement>("ins.adsbygoogle").forEach((unit) => {
+    if (unit.dataset.microbeAdsenseQueued === "true") return;
+    unit.dataset.microbeAdsenseQueued = "true";
+
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch {
+      unit.dataset.microbeAdsenseQueued = "false";
+    }
+  });
 }
 
 function renderLeaderboardPanel(context: "title" | "game"): string {
@@ -654,12 +938,12 @@ function renderLeaderboardEntry(entry: LeaderboardEntry, index: number): string 
 function renderTopBar(
   current: GameState,
   leftAction: { action: string; value?: string; label: string } | null,
-  rightAction: { action: string; value?: string; label: string },
+  rightAction: { action: string; value?: string; label: string } | null,
 ): string {
   return `
     ${leftAction ? renderCircleTextButton(leftAction, "top-left") : ""}
     ${renderTopTitle(current)}
-    ${renderCircleTextButton(rightAction, "top-right")}
+    ${rightAction ? renderCircleTextButton(rightAction, "top-right") : ""}
   `;
 }
 
@@ -723,9 +1007,31 @@ function formatDisplayCost(cost: ReturnType<typeof getStage>["cost"]): string {
 }
 
 function renderMicrobePlaceholder(level: number): string {
+  return renderMicrobePicture(level, `+${level} 미생물`, DEFAULT_MICROBE_SIZES);
+}
+
+function renderMicrobePicture(level: number, alt: string, sizes: string): string {
+  const optimizedPath = `/microbes-optimized/${level}`;
+
   return `
-    <img class="organism-image" src="/microbes/${level}.png" alt="+${level} 미생물" draggable="false" />
+    <picture class="microbe-picture">
+      <source type="image/avif" srcset="${optimizedPath}-512.avif 512w, ${optimizedPath}-1024.avif 1024w" sizes="${sizes}" />
+      <source type="image/webp" srcset="${optimizedPath}-512.webp 512w, ${optimizedPath}-1024.webp 1024w" sizes="${sizes}" />
+      <img class="organism-image" src="/microbes/${level}.png" alt="${alt}" draggable="false" decoding="async" />
+    </picture>
   `;
+}
+
+function readEnvString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeAdsenseClientId(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("ca-pub-")) return trimmed;
+  if (trimmed.startsWith("pub-")) return `ca-${trimmed}`;
+  if (/^\d+$/.test(trimmed)) return `ca-pub-${trimmed}`;
+  return "";
 }
 
 function escapeHtml(value: string): string {

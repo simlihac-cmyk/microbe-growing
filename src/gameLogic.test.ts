@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { EASY_STAGES, HARD_STAGES } from "./gameData";
 import {
   buyShopItem,
   collectDrop,
@@ -23,6 +24,29 @@ describe("microbe growing logic", () => {
   test("initial atp follows the selected mode", () => {
     expect(createInitialState("easy").atp).toBe(2_000);
     expect(createInitialState("hard").atp).toBe(1_000);
+  });
+
+  test("late-game balance table has boosted rates and protection costs", () => {
+    expect(EASY_STAGES.slice(21, 29).map(({ successRate, protectCost }) => [successRate, protectCost])).toEqual([
+      [50, 17],
+      [50, 20],
+      [50, 22],
+      [50, 23],
+      [45, 23],
+      [60, 50],
+      [50, 60],
+      [25, 100],
+    ]);
+    expect(HARD_STAGES.slice(21, 29).map(({ successRate, protectCost }) => [successRate, protectCost])).toEqual([
+      [40, 17],
+      [37, 20],
+      [37, 22],
+      [35, 23],
+      [45, 23],
+      [60, 50],
+      [50, 60],
+      [25, 100],
+    ]);
   });
 
   test("cultivation success spends atp and advances level", () => {
@@ -90,16 +114,31 @@ describe("microbe growing logic", () => {
   test("protection is unavailable on no-protect stages", () => {
     const failed: GameState = {
       ...createInitialState("hard"),
-      level: 26,
+      level: 3,
       protectTickets: 99,
       screen: "failed",
       pendingDrop: null,
     };
     const next = reviveWithProtection(failed);
 
-    expect(next.level).toBe(26);
+    expect(next.level).toBe(3);
     expect(next.protectTickets).toBe(99);
     expect(next.screen).toBe("failed");
+  });
+
+  test("protection revives salmonella with 50 tickets", () => {
+    const failed: GameState = {
+      ...createInitialState("hard"),
+      level: 26,
+      protectTickets: 50,
+      screen: "failed",
+      pendingDrop: null,
+    };
+    const next = reviveWithProtection(failed);
+
+    expect(next.level).toBe(26);
+    expect(next.protectTickets).toBe(0);
+    expect(next.screen).toBe("game");
   });
 
   test("selling returns to +0 and preserves sale prices", () => {
@@ -137,12 +176,12 @@ describe("microbe growing logic", () => {
   });
 
   test("combine recipes trade materials for protection tickets", () => {
-    const state = createInitialState("easy");
-    state.materials.unidentifiedMatter = 3;
-    const next = combineRecipe(state, "matter-to-protect");
+    const state = createInitialState("hard");
+    state.materials.lpxO = 5;
+    const next = combineRecipe(state, "lpxo-to-protect");
 
-    expect(next.protectTickets).toBe(9);
-    expect(next.materials.unidentifiedMatter).toBe(0);
+    expect(next.protectTickets).toBe(2);
+    expect(next.materials.lpxO).toBe(0);
   });
 
   test("combine recipes can create an organism", () => {
@@ -175,6 +214,22 @@ describe("microbe growing logic", () => {
 
     expect(success.level).toBe(15);
     expect(fail.level).toBe(0);
+  });
+
+  test("bulk protection shop items add 30 and 300 tickets", () => {
+    const thirtyTicketState = createInitialState("hard");
+    thirtyTicketState.atp = 45_000;
+    const thirtyTickets = buyShopItem(thirtyTicketState, "protect-30");
+
+    expect(thirtyTickets.atp).toBe(0);
+    expect(thirtyTickets.protectTickets).toBe(30);
+
+    const threeHundredTicketState = createInitialState("easy");
+    threeHundredTicketState.atp = 430_000;
+    const threeHundredTickets = buyShopItem(threeHundredTicketState, "protect-300");
+
+    expect(threeHundredTickets.atp).toBe(0);
+    expect(threeHundredTickets.protectTickets).toBe(300);
   });
 
   test("state can be saved and loaded by mode with the microbe storage key", () => {
