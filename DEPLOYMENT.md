@@ -1,42 +1,82 @@
 # 배포 메모
 
-## 목표
+## 현재 운영 방식
 
 - 서비스 주소: `https://microbe.monosaccharide180.com/`
+- 로컬 서비스: `http://127.0.0.1:4130`
+- 실행 방식: macOS LaunchAgent
+- 외부 연결: Cloudflare Tunnel
 - 빌드 명령: `npm run build`
 - 배포 폴더: `dist`
-- 앱은 클라이언트 전용 정적 사이트입니다.
 
-## Cloudflare Pages 권장 절차
+`owcs.monosaccharide180.com`과 같은 방식으로, 이 Mac에서 정적 서버를 띄우고 Cloudflare Tunnel이 서브도메인 트래픽을 로컬 포트로 전달합니다.
 
-현재 `monosaccharide180.com`은 Cloudflare 쪽 IP를 사용하고 있으므로, Cloudflare Pages가 가장 단순합니다.
-
-1. 이 폴더를 GitHub 저장소로 푸시합니다.
-2. Cloudflare Dashboard에서 `Workers & Pages` -> `Create application` -> `Pages`를 선택합니다.
-3. Git 저장소를 연결합니다.
-4. 빌드 설정을 아래처럼 지정합니다.
-   - Framework preset: `Vite`
-   - Build command: `npm run build`
-   - Build output directory: `dist`
-5. Pages 프로젝트 배포 후 `Custom domains`에서 `microbe.monosaccharide180.com`을 추가합니다.
-6. Cloudflare가 안내하는 DNS 레코드를 생성합니다.
-
-## DNS 확인
-
-DNS가 연결되면 아래 명령에서 값이 나와야 합니다.
-
-```bash
-dig +short microbe.monosaccharide180.com
-```
-
-## 직접 배포 선택지
-
-Cloudflare Pages CLI를 쓰는 경우:
+## 로컬 운영 서버
 
 ```bash
 npm install
 npm run build
-npx wrangler pages deploy dist --project-name microbe-growing
+MICROBE_HOST=127.0.0.1 MICROBE_PORT=4130 npm run start
 ```
 
-그 다음 Cloudflare Pages 프로젝트 설정에서 `microbe.monosaccharide180.com` 커스텀 도메인을 연결합니다.
+`start-prod.sh`는 위 과정을 자동화합니다.
+
+```bash
+chmod +x start-prod.sh
+./start-prod.sh
+```
+
+## LaunchAgent
+
+현재 운영 등록 위치:
+
+```txt
+/Users/sg_mac/Library/LaunchAgents/com.sg_mac.microbe-growing.plist
+```
+
+수동 재시작:
+
+```bash
+launchctl kickstart -k gui/$(id -u)/com.sg_mac.microbe-growing
+```
+
+상태 확인:
+
+```bash
+launchctl print gui/$(id -u)/com.sg_mac.microbe-growing
+curl -I http://127.0.0.1:4130/
+```
+
+## Cloudflare Tunnel
+
+현재 터널:
+
+```txt
+afc86512-488b-439f-bfb1-473e84b266eb
+```
+
+`/Users/sg_mac/.cloudflared/config.yml`의 ingress에 아래 항목이 필요합니다.
+
+```yaml
+- hostname: microbe.monosaccharide180.com
+  service: http://127.0.0.1:4130
+```
+
+DNS 라우트 생성:
+
+```bash
+cloudflared tunnel route dns --overwrite-dns afc86512-488b-439f-bfb1-473e84b266eb microbe.monosaccharide180.com
+```
+
+cloudflared 재시작:
+
+```bash
+launchctl kickstart -k gui/$(id -u)/com.sg_mac.cloudflared
+```
+
+검증:
+
+```bash
+dig @1.1.1.1 +short microbe.monosaccharide180.com
+curl -I https://microbe.monosaccharide180.com/
+```

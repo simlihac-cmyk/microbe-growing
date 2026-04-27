@@ -24,4 +24,10 @@ npm run build
 npm run build
 ```
 
-권장 배포 대상 도메인은 `https://microbe.monosaccharide180.com/`입니다. 자세한 배포 순서는 [DEPLOYMENT.md](./DEPLOYMENT.md)를 참고하세요.
+운영 서버는 `npm run start`로 `dist/`를 서비스합니다.
+
+```bash
+MICROBE_HOST=127.0.0.1 MICROBE_PORT=4130 npm run start
+```
+
+현재 배포 대상 도메인은 `https://microbe.monosaccharide180.com/`입니다. 자세한 배포 순서는 [DEPLOYMENT.md](./DEPLOYMENT.md)를 참고하세요.
