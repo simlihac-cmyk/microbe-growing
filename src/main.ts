@@ -48,7 +48,7 @@ let state: GameState | null = null;
 let isTitleHelpOpen = false;
 let isLeaderboardOpen = false;
 
-seedSampleLeaderboard();
+removeSampleLeaderboardEntries();
 render();
 
 app.addEventListener("click", (event) => {
@@ -144,46 +144,35 @@ function persist(): void {
   if (state) saveState(localStorage, state);
 }
 
-function seedSampleLeaderboard(): void {
-  const existingEntries = loadLeaderboard(localStorage);
-  if (existingEntries.length >= 10) return;
+function removeSampleLeaderboardEntries(): void {
+  const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).filter(
+    (key): key is string => key?.startsWith("microbe-growing-leaderboard-v1:") ?? false,
+  );
 
-  const monthKey = getLeaderboardStorageKey().replace("microbe-growing-leaderboard-v1:", "");
-  const baseTime = new Date(`${monthKey}-01T00:00:00`).getTime();
-  const samples: Array<{ name: string; level: number; mode: Mode }> = [
-    { name: "아스트로민", level: 29, mode: "hard" },
-    { name: "별먼지", level: 29, mode: "easy" },
-    { name: "궤도배양자", level: 28, mode: "hard" },
-    { name: "비행균주", level: 27, mode: "easy" },
-    { name: "살모넬라킹", level: 26, mode: "hard" },
-    { name: "코로나장인", level: 25, mode: "easy" },
-    { name: "방사능덕후", level: 24, mode: "hard" },
-    { name: "초록배지", level: 24, mode: "easy" },
-    { name: "현미경", level: 24, mode: "hard" },
-    { name: "ATP부자", level: 24, mode: "easy" },
-  ];
-  const existingIds = new Set(existingEntries.map((entry) => entry.id));
-  const sampleEntries: LeaderboardEntry[] = samples.map((sample, index) => ({
-    id: `sample-${monthKey}-${index}`,
-    name: sample.name,
-    level: sample.level,
-    stageName: STAGES[sample.mode][sample.level].name,
-    mode: sample.mode,
-    submittedAt: baseTime + index * 60_000,
-    monthKey,
-    isAstrophage: sample.level === 29,
-  }));
-  const entries = [
-    ...existingEntries,
-    ...sampleEntries
-      .filter((entry) => !existingIds.has(entry.id))
-      .slice(0, Math.max(0, 10 - existingEntries.length)),
-  ].sort((left, right) => {
-    if (right.level !== left.level) return right.level - left.level;
-    return left.submittedAt - right.submittedAt;
-  });
+  for (const key of keys) {
+    const rawEntries = localStorage.getItem(key);
+    if (!rawEntries) continue;
 
-  localStorage.setItem(getLeaderboardStorageKey(), JSON.stringify(entries));
+    try {
+      const entries = JSON.parse(rawEntries) as unknown;
+      if (!Array.isArray(entries)) continue;
+
+      const actualEntries = entries.filter((entry) => {
+        if (!entry || typeof entry !== "object") return true;
+        const id = (entry as { id?: unknown }).id;
+        return typeof id !== "string" || !id.startsWith("sample-");
+      });
+
+      if (actualEntries.length === entries.length) continue;
+      if (actualEntries.length === 0) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify(actualEntries));
+      }
+    } catch {
+      // Ignore malformed user storage.
+    }
+  }
 }
 
 function render(): void {
