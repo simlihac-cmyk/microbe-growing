@@ -482,7 +482,7 @@ function renderTitle(): string {
       <section class="game-stage title-stage" aria-label="미생물 키우기 시작 화면">
         <div class="title-copy">
           <h1 class="title-logo wobbly-title" aria-label="${TITLE_TEXT}">${renderWobblyText(TITLE_TEXT)}</h1>
-          <p class="version">V1.0.1</p>
+          <p class="version">V1.0.2</p>
         </div>
         <div class="title-microbe" aria-hidden="true">
           ${renderMicrobePicture(titleMicrobeLevel, "", TITLE_MICROBE_SIZES)}
